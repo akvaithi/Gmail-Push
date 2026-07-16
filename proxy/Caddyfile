@@ -1,0 +1,17 @@
+# Public TLS termination for the bridge.
+# Caddy obtains + renews a Let's Encrypt cert for BRIDGE_FQDN automatically,
+# then reverse-proxies to the Z-Push container. iOS EAS requires valid HTTPS.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$BRIDGE_FQDN} {
+	reverse_proxy zpush:80 {
+		# EAS Ping requests are long-lived; don't cut them off.
+		transport http {
+			read_timeout 3600s
+			write_timeout 3600s
+		}
+	}
+}

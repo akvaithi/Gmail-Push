@@ -1,0 +1,28 @@
+# === SECRETS — never commit (public repo) ===
+.env
+*.env
+!.env.example
+# Postfix SASL / any rendered credential files
+**/sasl_passwd
+**/sasl_passwd.db
+# OAuth tokens / refresh tokens (Phase 2 CalDAV)
+**/token.json
+**/*.token
+**/oauth*.json
+
+# === TLS / Caddy state ===
+proxy/data/
+proxy/config/
+*.pem
+*.key
+*.crt
+
+# === Runtime mail data / volumes ===
+mail/
+maildata/
+zpush-state/
+
+# === OS / editor cruft ===
+.DS_Store
+*.swp
+*.log

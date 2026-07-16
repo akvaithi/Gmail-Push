@@ -1,0 +1,87 @@
+# =============================================================================
+# Gmail -> Apple Mail Push Bridge
+#
+#   Gmail --IMAP IDLE--> watcher --mbsync--> [maildata] <--IMAP-- dovecot
+#                                                                    ^
+#                                                                    | IMAP
+#   iOS Apple Mail <==EAS push== caddy(TLS) --> zpush --------------- +
+#                                                 |
+#                                                 +--SMTP--> postfix --> smtp.gmail.com
+#
+# All custom images are published to GHCR (public). Postfix/Caddy use upstream.
+# =============================================================================
+
+name: gmail-push
+
+networks:
+  bridge:
+    driver: bridge
+
+volumes:
+  maildata:      # shared Maildir: written by watcher, served by dovecot
+  zpush-state:   # Z-Push device/sync state
+  caddy-data:    # TLS certs / ACME state
+  caddy-config:
+
+services:
+  # --- A. Watcher + Fetcher: IMAP IDLE on Gmail, triggers mbsync -------------
+  watcher:
+    image: ghcr.io/${IMAGE_OWNER:-akvaithi}/gmail-push-watcher:${IMAGE_TAG:-latest}
+    build: ./watcher
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - maildata:/mail
+    networks: [bridge]
+
+  # --- B. Dovecot: local IMAP over the shared Maildir -----------------------
+  dovecot:
+    image: ghcr.io/${IMAGE_OWNER:-akvaithi}/gmail-push-dovecot:${IMAGE_TAG:-latest}
+    build: ./dovecot
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - maildata:/mail
+    networks: [bridge]
+    expose: ["143"]
+
+  # --- D. Postfix: send-only relay to smtp.gmail.com (upstream image) -------
+  postfix:
+    image: ghcr.io/bokysan/postfix:v4.5.0
+    restart: unless-stopped
+    environment:
+      ALLOWED_SENDER_DOMAINS: "gmail.com"
+      RELAYHOST: "[smtp.gmail.com]:587"
+      RELAYHOST_USERNAME: "${GMAIL_ADDRESS}"
+      RELAYHOST_PASSWORD: "${GMAIL_APP_PASSWORD}"
+      RELAYHOST_TLS_LEVEL: "encrypt"
+      MASQUERADED_DOMAINS: "gmail.com"
+    networks: [bridge]
+    expose: ["587"]
+
+  # --- C. Z-Push: Exchange ActiveSync front end -----------------------------
+  zpush:
+    image: ghcr.io/${IMAGE_OWNER:-akvaithi}/gmail-push-zpush:${IMAGE_TAG:-latest}
+    build: ./zpush
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - zpush-state:/var/lib/z-push
+    networks: [bridge]
+    expose: ["80"]
+    depends_on: [dovecot, postfix]
+
+  # --- E. Caddy: public TLS termination -> zpush ----------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "443:443"
+      - "80:80"      # ACME HTTP-01 challenge
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [bridge]
+    depends_on: [zpush]

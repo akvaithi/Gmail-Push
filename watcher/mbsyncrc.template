@@ -1,0 +1,29 @@
+# Rendered from this template by entrypoint.sh (envsubst).
+# v1 = one-way pull (Gmail -> local Maildir). See README to enable two-way.
+
+IMAPAccount gmail
+Host imap.gmail.com
+Port 993
+User ${GMAIL_ADDRESS}
+Pass ${GMAIL_APP_PASSWORD}
+TLSType IMAPS
+AuthMechs LOGIN
+SystemCertificates yes
+
+IMAPStore gmail-remote
+Account gmail
+
+MaildirStore local
+Path /mail/
+Inbox /mail/INBOX
+SubFolders Verbatim
+
+Channel gmail
+Far :gmail-remote:
+Near :local:
+Patterns "INBOX"
+Create Near
+Expunge Near
+SyncState *
+# v1: pull-only. For two-way (iPhone read/delete -> Gmail) change to: Sync All
+Sync Pull
