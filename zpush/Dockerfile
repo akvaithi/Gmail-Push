@@ -1,9 +1,11 @@
-FROM php:8.2-apache
+# Pinned to the bullseye variant: newer Debian (bookworm/trixie) dropped
+# libc-client-dev (UW-IMAP), which the PHP imap extension still needs.
+FROM php:8.2-apache-bullseye
 
 # Z-Push needs the IMAP extension; the IMAP backend's SMTP sender needs PEAR
 # Mail/Net_SMTP. gettext-base provides envsubst for runtime config rendering.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git libc-client-dev libkrb5-dev gettext-base \
+      git libc-client-dev libkrb5-dev libssl-dev gettext-base \
  && docker-php-ext-configure imap --with-kerberos --with-imap-ssl \
  && docker-php-ext-install imap \
  && pear install Mail Mail_mime Net_SMTP \
