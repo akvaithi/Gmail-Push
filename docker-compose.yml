@@ -47,7 +47,7 @@ services:
 
   # --- D. Postfix: send-only relay to smtp.gmail.com (upstream image) -------
   postfix:
-    image: ghcr.io/bokysan/postfix:v4.5.0
+    image: boky/postfix:v5.1.0
     restart: unless-stopped
     environment:
       ALLOWED_SENDER_DOMAINS: "gmail.com"
