@@ -1,0 +1,67 @@
+# =============================================================================
+# Gmail -> Apple Mail Push Bridge — Cloudflare Tunnel edition (no Caddy)
+#
+# Use this when you already run a Cloudflare Tunnel (cloudflared). Cloudflare
+# terminates TLS at its edge, so there's NO Caddy, NO Let's Encrypt, NO router
+# port-forwarding. zpush is published on host port 8082 so your cloudflared
+# container can reach it; you point a Public Hostname at http://<LAN_IP>:8082
+# in the Cloudflare Zero Trust dashboard.
+#
+# IMPORTANT: a tunnel is proxied, and Cloudflare cuts requests at ~100s (524).
+# PING_HIGHER_BOUND_LIFETIME=90 keeps each EAS Ping under that so push survives.
+#
+# Create folders first:
+#   sudo mkdir -p /DATA/AppData/gmail-push/{mail,zpush-state}
+# =============================================================================
+
+name: gmail-push
+
+networks:
+  bridge:
+
+services:
+  watcher:
+    image: ghcr.io/akvaithi/gmail-push-watcher:latest
+    restart: unless-stopped
+    environment:
+      GMAIL_ADDRESS: "you@gmail.com"              # <-- CHANGE
+      GMAIL_APP_PASSWORD: "xxxxxxxxxxxxxxxx"       # <-- CHANGE  (16-char App Password)
+      SYNC_INTERVAL: "45"
+    volumes:
+      - /DATA/AppData/gmail-push/mail:/mail
+    networks: [bridge]
+
+  dovecot:
+    image: ghcr.io/akvaithi/gmail-push-dovecot:latest
+    restart: unless-stopped
+    environment:
+      LOCAL_BRIDGE_USER: "bridgeuser"             # <-- CHANGE  (iOS username)
+      LOCAL_BRIDGE_PASS: "pick-a-long-random-pw"  # <-- CHANGE  (iOS password)
+    volumes:
+      - /DATA/AppData/gmail-push/mail:/mail        # SAME host path as watcher
+    networks: [bridge]
+
+  postfix:
+    image: boky/postfix:v5.1.0
+    restart: unless-stopped
+    environment:
+      ALLOWED_SENDER_DOMAINS: "gmail.com"
+      RELAYHOST: "[smtp.gmail.com]:587"
+      RELAYHOST_USERNAME: "you@gmail.com"         # <-- CHANGE  (same Gmail)
+      RELAYHOST_PASSWORD: "xxxxxxxxxxxxxxxx"       # <-- CHANGE  (same App Password)
+      POSTFIX_smtp_tls_security_level: "encrypt"
+      MASQUERADED_DOMAINS: "gmail.com"
+    networks: [bridge]
+
+  zpush:
+    image: ghcr.io/akvaithi/gmail-push-zpush:latest
+    restart: unless-stopped
+    environment:
+      PING_INTERVAL: "30"
+      PING_HIGHER_BOUND_LIFETIME: "90"   # keep each Ping under Cloudflare's ~100s cutoff
+    ports:
+      - "8082:80"                        # cloudflared -> http://<LAN_IP>:8082
+    volumes:
+      - /DATA/AppData/gmail-push/zpush-state:/var/lib/z-push
+    networks: [bridge]
+    depends_on: [dovecot, postfix]

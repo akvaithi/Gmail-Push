@@ -2,11 +2,12 @@
 set -eu
 
 : "${PING_INTERVAL:=30}"
-export PING_INTERVAL
+: "${PING_HIGHER_BOUND_LIFETIME:=90}"
+export PING_INTERVAL PING_HIGHER_BOUND_LIFETIME
 
-# Render PING_INTERVAL into the Z-Push config (only that token is substituted).
+# Render the templated tokens into the Z-Push config.
 tmp="$(mktemp)"
-envsubst '${PING_INTERVAL}' < /var/www/html/config.php > "$tmp"
+envsubst '${PING_INTERVAL} ${PING_HIGHER_BOUND_LIFETIME}' < /var/www/html/config.php > "$tmp"
 mv "$tmp" /var/www/html/config.php
 
 mkdir -p /var/lib/z-push /var/log/z-push

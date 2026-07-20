@@ -17,6 +17,12 @@
     // This is the practical ceiling on push latency (seconds).
     define('PING_INTERVAL', ${PING_INTERVAL});
 
+    // Cap how long a single Ping is held open. Behind a Cloudflare Tunnel/proxy
+    // the edge returns 524 after ~100s, so keep this under that (e.g. 90): Z-Push
+    // answers "no changes" first and iOS immediately re-pings. Harmless on a
+    // direct connection too.
+    define('PING_HIGHER_BOUND_LIFETIME', ${PING_HIGHER_BOUND_LIFETIME});
+
     define('SYNC_MAX_ITEMS', 512);
     define('UNSET_UNCHANGED_ITEMS', true);
 
