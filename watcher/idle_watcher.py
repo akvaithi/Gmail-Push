@@ -51,6 +51,8 @@ def run_mbsync(reason: str) -> None:
             log(f"mbsync failed rc={e.returncode}: {e.stderr.strip()}")
         except subprocess.TimeoutExpired:
             log("mbsync timed out")
+        # Dovecot serves mail as uid 1000; hand it ownership of what we synced.
+        subprocess.run(["chown", "-R", "1000:1000", "/mail"], check=False)
 
 
 def periodic_sync() -> None:
