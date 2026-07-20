@@ -9,6 +9,9 @@ export PING_INTERVAL PING_HIGHER_BOUND_LIFETIME
 tmp="$(mktemp)"
 envsubst '${PING_INTERVAL} ${PING_HIGHER_BOUND_LIFETIME}' < /var/www/html/config.php > "$tmp"
 mv "$tmp" /var/www/html/config.php
+# mktemp creates 0600 root; Apache runs as www-data and must be able to read it.
+chown www-data:www-data /var/www/html/config.php
+chmod 644 /var/www/html/config.php
 
 mkdir -p /var/lib/z-push /var/log/z-push
 chown -R www-data:www-data /var/lib/z-push /var/log/z-push
