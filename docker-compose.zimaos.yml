@@ -75,7 +75,9 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    command: reverse-proxy --from https://push.example.com --to zpush:80  # <-- CHANGE domain
+    # List form (not a plain string): some importers (e.g. ZimaOS/CasaOS) don't
+    # shell-split a string command, which makes Caddy fail to start.
+    command: ["reverse-proxy", "--from", "https://push.example.com", "--to", "zpush:80"]  # <-- CHANGE domain
     ports:
       - "8080:80"     # router maps public 80  -> here
       - "8443:443"    # router maps public 443 -> here
