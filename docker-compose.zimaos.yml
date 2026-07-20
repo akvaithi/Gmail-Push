@@ -1,29 +1,27 @@
 # =============================================================================
 # Gmail -> Apple Mail Push Bridge — ZimaOS / copy-paste edition
 #
-# Self-contained: pulls prebuilt images from GHCR, no build contexts, no .env,
-# no bind-mounts. Edit the 5 values marked  # <-- CHANGE  and paste into
+# Self-contained: pulls prebuilt images from GHCR, no build contexts, no .env.
+# Uses explicit bind-mounts under /DATA/AppData/gmail-push so ZimaOS shows the
+# folders (named volumes don't appear in the ZimaOS UI and may not auto-create).
+#
+# BEFORE INSTALL, create the folders once over SSH:
+#   sudo mkdir -p /DATA/AppData/gmail-push/{mail,zpush-state,caddy-data,caddy-config}
+#
+# Then edit the values marked  # <-- CHANGE  and paste into
 # ZimaOS -> Apps -> Custom Install (Import / docker-compose).
 #
 # PREREQS:
-#   * The three ghcr.io/akvaithi/gmail-push-* packages must be PUBLIC
-#     (or run `docker login ghcr.io` on the host first).
-#   * A public DNS name pointing at this server, ports 80 + 443 reachable
-#     from the internet (iOS Exchange requires HTTPS on 443).
-#   * NOTE: ZimaOS's own web UI may already use port 80/443 — if so, free them
-#     or forward external 80/443 to this stack; iOS cannot use a custom port.
+#   * The three ghcr.io/akvaithi/gmail-push-* packages must be PUBLIC.
+#   * A public DNS name -> your IP (grey cloud / DNS only), and the router
+#     forwarding external 80 -> host:8080 and 443 -> host:8443 (Caddy binds
+#     8080/8443 because ZimaOS's own UI holds 80/443). iOS needs HTTPS on 443.
 # =============================================================================
 
 name: gmail-push
 
 networks:
   bridge:
-
-volumes:
-  maildata:
-  zpush-state:
-  caddy-data:
-  caddy-config:
 
 services:
   # IMAP IDLE watcher -> mbsync into the shared Maildir
@@ -35,7 +33,7 @@ services:
       GMAIL_APP_PASSWORD: "xxxxxxxxxxxxxxxx"       # <-- CHANGE  (16-char App Password)
       SYNC_INTERVAL: "45"
     volumes:
-      - maildata:/mail
+      - /DATA/AppData/gmail-push/mail:/mail
     networks: [bridge]
 
   # Local IMAP over the Maildir (what iOS actually reads, via Z-Push)
@@ -46,7 +44,7 @@ services:
       LOCAL_BRIDGE_USER: "bridgeuser"             # <-- CHANGE  (you invent this; iOS username)
       LOCAL_BRIDGE_PASS: "pick-a-long-random-pw"  # <-- CHANGE  (you invent this; iOS password)
     volumes:
-      - maildata:/mail
+      - /DATA/AppData/gmail-push/mail:/mail       # SAME host path as watcher
     networks: [bridge]
 
   # Send-only relay: outbound mail from iOS goes out through Gmail's SMTP
@@ -58,7 +56,7 @@ services:
       RELAYHOST: "[smtp.gmail.com]:587"
       RELAYHOST_USERNAME: "you@gmail.com"         # <-- CHANGE  (same Gmail address)
       RELAYHOST_PASSWORD: "xxxxxxxxxxxxxxxx"       # <-- CHANGE  (same App Password)
-      RELAYHOST_TLS_LEVEL: "encrypt"
+      POSTFIX_smtp_tls_security_level: "encrypt"
       MASQUERADED_DOMAINS: "gmail.com"
     networks: [bridge]
 
@@ -69,7 +67,7 @@ services:
     environment:
       PING_INTERVAL: "30"
     volumes:
-      - zpush-state:/var/lib/z-push
+      - /DATA/AppData/gmail-push/zpush-state:/var/lib/z-push
     networks: [bridge]
     depends_on: [dovecot, postfix]
 
@@ -79,10 +77,10 @@ services:
     restart: unless-stopped
     command: reverse-proxy --from https://push.example.com --to zpush:80  # <-- CHANGE domain
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"     # router maps public 80  -> here
+      - "8443:443"    # router maps public 443 -> here
     volumes:
-      - caddy-data:/data
-      - caddy-config:/config
+      - /DATA/AppData/gmail-push/caddy-data:/data
+      - /DATA/AppData/gmail-push/caddy-config:/config
     networks: [bridge]
     depends_on: [zpush]
